@@ -15,6 +15,114 @@
 - Применить оптимизации IR.  
 - Проанализировать результат.  
 
+## Ubuntu
+<img width="1004" height="792" alt="image" src="https://github.com/user-attachments/assets/8ebdb159-ee70-40e2-a7b5-a83e2c87afe9" />
+<img width="1004" height="496" alt="image" src="https://github.com/user-attachments/assets/1d5b707e-dd7a-48bf-8f9a-54c962ddc0cf" />
+<img width="1004" height="496" alt="image" src="https://github.com/user-attachments/assets/01e2c2db-9e1b-448b-8f25-83e38f059821" />
+<img width="1004" height="314" alt="image" src="https://github.com/user-attachments/assets/faf3de01-24c0-4459-a1c7-3810684ad3db" />
+user@user-Z390-D:~/Рабочий стол/7$ diff main_O0.ll main_O2.ll
+6,30c6,10
+< ; Function Attrs: noinline nounwind optnone uwtable
+< define dso_local i32 @max(i32 noundef %0, i32 noundef %1) #0 {
+<   %3 = alloca i32, align 4
+<   %4 = alloca i32, align 4
+<   %5 = alloca i32, align 4
+<   store i32 %0, i32* %4, align 4
+<   store i32 %1, i32* %5, align 4
+<   %6 = load i32, i32* %4, align 4
+<   %7 = load i32, i32* %5, align 4
+<   %8 = icmp sgt i32 %6, %7
+<   br i1 %8, label %9, label %11
+<
+< 9:                                                ; preds = %2
+<   %10 = load i32, i32* %4, align 4
+<   store i32 %10, i32* %3, align 4
+<   br label %13
+<
+< 11:                                               ; preds = %2
+<   %12 = load i32, i32* %5, align 4
+<   store i32 %12, i32* %3, align 4
+<   br label %13
+<
+< 13:                                               ; preds = %11, %9
+<   %14 = load i32, i32* %3, align 4
+<   ret i32 %14
+---
+> ; Function Attrs: mustprogress nofree norecurse nosync nounwind readnone uwtable willreturn
+> define dso_local i32 @max(i32 noundef %0, i32 noundef %1) local_unnamed_addr #0 {
+>   %3 = icmp sgt i32 %0, %1
+>   %4 = select i1 %3, i32 %0, i32 %1
+>   ret i32 %4
+33c13
+< attributes #0 = { noinline nounwind optnone uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+---
+> attributes #0 = { mustprogress nofree norecurse nosync nounwind readnone uwtable willreturn "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+35,36c15,16
+< !llvm.module.flags = !{!0, !1, !2, !3, !4}
+< !llvm.ident = !{!5}
+---
+> !llvm.module.flags = !{!0, !1, !2, !3}
+> !llvm.ident = !{!4}
+42,43c22
+< !4 = !{i32 7, !"frame-pointer", i32 2}
+< !5 = !{!"Ubuntu clang version 14.0.0-1ubuntu1.1"}
+---
+> !4 = !{!"Ubuntu clang version 14.0.0-1ubuntu1.1"}
+<img width="1004" height="112" alt="image" src="https://github.com/user-attachments/assets/d6dac39b-f6b5-4780-b4b8-db6953e82dff" />
+<img width="1004" height="367" alt="image" src="https://github.com/user-attachments/assets/7b6dd48d-5a82-429f-86f1-903ef50fcfc5" />
+<img width="1004" height="203" alt="image" src="https://github.com/user-attachments/assets/88bf65a1-230c-4967-a28b-1838dd0c5c0c" />
+<img width="1004" height="468" alt="image" src="https://github.com/user-attachments/assets/8146d70b-51e1-48bb-a55d-fe4086506f3b" />
+<img width="1004" height="468" alt="image" src="https://github.com/user-attachments/assets/487cfa7b-7102-4027-bc55-d9f391916f9b" />
+<img width="780" height="389" alt="image" src="https://github.com/user-attachments/assets/4b0640ec-800b-42e1-953d-2a4bde531bc4" />
+<img width="632" height="98" alt="image" src="https://github.com/user-attachments/assets/719b4f57-07bf-4884-93a9-f5582e718b6e" />
+
+## Ответы на вопросы
+Примените -O2. Изменилось ли условие на cmov?
+IR для -O2:
+llvm
+define i32 @max(i32 %a, i32 %b) {
+entry:
+  %cmp = icmp sgt i32 %a, %b
+  %spec.select = select i1 %cmp, i32 %a, i32 %b
+  ret i32 %spec.select
+}
+Вывод: Да, условие изменилось.
+Вместо условного перехода (br) используется инструкция select.
+На уровне машинного кода select обычно транслируется в условное перемещение (cmov на x86), если целевая архитектура его поддерживает.
+Это позволяет избежать сброса конвейера при неправильном предсказании ветвления.
+Исследуйте, меняется ли CFG при использовании -branch-prob
+Команда:
+bash
+opt -branch-prob -dot-cfg -disable-output main.ll
+Что происходит:
+Сама структура CFG не меняется (количество блоков, рёбра те же).
+Добавляются метаданные вероятностей (!prof) к рёбрам переходов.
+Например, для br i1 %cmp, label %if.then, label %if.else добавляется !prof !{!"branch_weights", i32 500, i32 500} (50%/50%).
+Эти метаданные используются последующими оптимизациями (например, для упорядочивания блоков при генерации кода, чтобы часто исполняемая ветка шла без перехода).
+Вывод: CFG как граф не меняется, но его аннотации (веса рёбер) изменяются, что влияет на компоновку базовых блоков в машинном коде.
+
+Сделайте вывод о том, как LLVM оптимизирует условные переходы
+Выводы:
+На низком уровне оптимизации (-O0)
+LLVM сохраняет структуру if-else как условный ветвительный переход (br). Это удобно для отладки, но неэффективно при выполнении.
+На высоком уровне оптимизации (-O2 и выше)
+LLVM преобразует простые условные операторы, не имеющие побочных эффектов, в инструкцию select (условное перемещение). Преимущества:
+Отсутствие потенциально непредсказуемого ветвления.
+Лучшая производительность на конвейерных процессорах.
+Компактный код.
+Когда select не применяется:
+Если в ветках есть вызовы функций.
+Если есть операции ввода-вывода или другие побочные эффекты.
+Если типы данных не поддерживают условное перемещение (например, большие структуры).
+
+Дополнительные оптимизации:
+Параметр -branch-prob не меняет граф, но добавляет профилировочную информацию для принятия решений о перестановке блоков (блок с большей вероятностью размещается без перехода).
+Совместно с -O2 может также применяться разворот циклов, инлайнинг и другие оптимизации, которые могут полностью удалить условие, если оно становится константным.
+Сравнение с тернарным оператором
+IR для тернарного оператора после -O2 идентичен IR для if-else после оптимизации. Оба превращаются в select. Значит, с точки зрения конечного машинного кода эти конструкции эквивалентны.
+Итог: LLVM агрессивно заменяет условные переходы на условные перемещения везде, где это возможно, что является одной из ключевых оптимизаций для повышения производительности современных процессоров.
+
+
 **Дополнительное задание (бонус, до 5 баллов):**
 
 - Построить AST и IR для конструкции из ЛР5/КР (`if-else` Python).  
